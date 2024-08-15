@@ -1,5 +1,6 @@
 const express = require('express')
 const router = express.Router()
+const User = require('../models/User');
 const multer = require('multer');
 const path = require('path');
 const authController = require('../controllers/authController');
@@ -38,9 +39,25 @@ const validateProfileImage = body('profileImage')
     });
 
 //router para las vistas
-router.get('/', authController.isAuthenticated, (req, res)=>{    
-    res.render('index', {user:req.user, users: []})
-})
+router.get('/', authController.isAuthenticated, async (req, res) => {
+    try {
+        const { id, user, name, profile_image } = req.user;
+
+        // Recuperar todos los usuarios desde la base de datos
+        const users = await User.findAll({
+            attributes: ['id', 'user', 'name', 'correo', 'profile_image']
+        });
+
+        res.render('index', {
+            user: { id, user, name, profile_image },
+            users: users
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).send('Error al cargar la página principal');
+    }
+});
+
 router.get('/register', (req, res)=>{
     res.render('register',  { validaciones: [] })
 })

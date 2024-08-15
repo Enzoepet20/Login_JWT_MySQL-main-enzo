@@ -1,19 +1,14 @@
-const mysql = require('mysql')
+require("dotenv").config();
+var sequelize = require("sequelize");
 
-const conexion = mysql.createConnection({
-    host : process.env.DB_HOST,
-    user : process.env.DB_USER,
-    password : process.env.DB_PASS,
-    database : process.env.DB_DATABASE,
-    port: process.env.DB_PORT
-})
-
-conexion.connect( (error)=> {
-    if(error){
-        console.log('El error de conexión es: '+error)
-        return
+var db = new sequelize(
+    'registro_sequelize', // Reemplaza con el nombre de tu base de datos
+    'pma', // Reemplaza con tu usuario de base de datos
+    '1234', // Reemplaza con tu contraseña
+    {
+        dialect: "mysql",
+        host: 'localhost', // Reemplaza con el host de tu base de datos
+        port: 3307, // Reemplaza con el puerto de tu base de datos si es diferente al predeterminado
     }
-    console.log('¡Conectado a la base de datos MySQL!')
-})
-
-module.exports = conexion
+);
+module.exports = db;

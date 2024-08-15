@@ -1,16 +1,18 @@
-const jwt = require('jsonwebtoken')
-const bcryptjs = require('bcryptjs')
-const conexion = require('../database/db')
-const {promisify} = require('util')
+const jwt = require('jsonwebtoken');
+const bcryptjs = require('bcryptjs');
+const User = require('../models/User'); // Importa tu modelo de Sequelize
+const { promisify } = require('util');
 
-//procedimiento para registrarnos
+// Valores reemplazados que estaban en el archivo .env
+const JWT_SECRETO = 'super_secret';
+const JWT_TIEMPO_EXPIRA = '7d';
+const JWT_COOKIE_EXPIRES = 90; // En días
+
+// Procedimiento para registrarnos
 exports.register = async (req, res) => {    
     try {
-        const name = req.body.name;
-        const user = req.body.user;
-        const pass = req.body.pass;
-        const correo = req.body.correo;
-        let passHash = await bcryptjs.hash(pass, 8);
+        const { name, user, pass, correo } = req.body;
+        const passHash = await bcryptjs.hash(pass, 8);
 
         // Verifica si se ha subido una imagen y guarda la URL
         let profileImageUrl = '';
@@ -18,100 +20,104 @@ exports.register = async (req, res) => {
             profileImageUrl = `/uploads/${req.file.filename}`;
         }
 
-        // Inserta los datos en la base de datos, incluyendo la URL de la imagen
-        conexion.query('INSERT INTO users SET ?', 
-            {user: user, name: name, correo:correo, pass: passHash, profile_image: profileImageUrl}, 
-            (error, results) => {
-                if (error) {
-                    console.log(error);
-                }
-                res.redirect('/');
-            }
-        );
+        // Crea un nuevo usuario en la base de datos
+        await User.create({
+            user,
+            name,
+            correo,
+            pass: passHash,
+            profile_image: profileImageUrl
+        });
+
+        res.redirect('/');
     } catch (error) {
         console.log(error);
+        res.status(500).send('Error al registrar el usuario');
     }       
 };
 
-
-exports.login = async (req, res)=>{
+exports.login = async (req, res) => {
     try {
-        const user = req.body.user
-        const pass = req.body.pass        
+        const { user, pass } = req.body;
 
-        if(!user || !pass ){
-            res.render('login',{
-                alert:true,
+        if (!user || !pass) {
+            return res.render('login', {
+                alert: true,
                 alertTitle: "Advertencia",
                 alertMessage: "Ingrese un usuario y password",
-                alertIcon:'info',
+                alertIcon: 'info',
                 showConfirmButton: true,
                 timer: false,
                 ruta: 'login'
-            })
-        }else{
-            conexion.query('SELECT * FROM users WHERE user = ?', [user], async (error, results)=>{
-                if( results.length == 0 || ! (await bcryptjs.compare(pass, results[0].pass)) ){
-                    res.render('login', {
-                        alert: true,
-                        alertTitle: "Error",
-                        alertMessage: "Usuario y/o Password incorrectas",
-                        alertIcon:'error',
-                        showConfirmButton: true,
-                        timer: false,
-                        ruta: 'login'    
-                    })
-                }else{
-                    //inicio de sesión OK
-                    const id = results[0].id
-                    const token = jwt.sign({id:id}, process.env.JWT_SECRETO, {
-                        expiresIn: process.env.JWT_TIEMPO_EXPIRA
-                    })
-                    //generamos el token SIN fecha de expiracion
-                   //const token = jwt.sign({id: id}, process.env.JWT_SECRETO)
-                   console.log("TOKEN: "+token+" para el USUARIO : "+user)
-
-                   const cookiesOptions = {
-                        expires: new Date(Date.now()+process.env.JWT_COOKIE_EXPIRES * 24 * 60 * 60 * 1000),
-                        httpOnly: true
-                   }
-                   res.cookie('jwt', token, cookiesOptions)
-                   res.render('login', {
-                        alert: true,
-                        alertTitle: "Conexión exitosa",
-                        alertMessage: "¡LOGIN CORRECTO!",
-                        alertIcon:'success',
-                        showConfirmButton: false,
-                        timer: 800,
-                        ruta: ''
-                   })
-                }
-            })
+            });
         }
-    } catch (error) {
-        console.log(error)
-    }
-}
 
-exports.isAuthenticated = async (req, res, next)=>{
+        // Busca el usuario en la base de datos
+        const userRecord = await User.findOne({ where: { user } });
+
+        if (!userRecord || !(await bcryptjs.compare(pass, userRecord.pass))) {
+            return res.render('login', {
+                alert: true,
+                alertTitle: "Error",
+                alertMessage: "Usuario y/o Password incorrectas",
+                alertIcon: 'error',
+                showConfirmButton: true,
+                timer: false,
+                ruta: 'login'
+            });
+        }
+
+        // Inicio de sesión OK
+        const id = userRecord.id;
+        const token = jwt.sign({ id }, JWT_SECRETO, {
+            expiresIn: JWT_TIEMPO_EXPIRA
+        });
+
+        console.log("TOKEN: " + token + " para el USUARIO : " + user);
+
+        const cookiesOptions = {
+            expires: new Date(Date.now() + JWT_COOKIE_EXPIRES * 24 * 60 * 60 * 1000),
+            httpOnly: true
+        };
+        res.cookie('jwt', token, cookiesOptions);
+        res.render('login', {
+            alert: true,
+            alertTitle: "Conexión exitosa",
+            alertMessage: "¡LOGIN CORRECTO!",
+            alertIcon: 'success',
+            showConfirmButton: false,
+            timer: 800,
+            ruta: ''
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).send('Error en el proceso de login');
+    }
+};
+
+exports.isAuthenticated = async (req, res, next) => {
     if (req.cookies.jwt) {
         try {
-            const decodificada = await promisify(jwt.verify)(req.cookies.jwt, process.env.JWT_SECRETO)
-            conexion.query('SELECT * FROM users WHERE id = ?', [decodificada.id], (error, results)=>{
-                if(!results){return next()}
-                req.user = results[0]
-                return next()
-            })
-        } catch (error) {
-            console.log(error)
-            return next()
-        }
-    }else{
-        res.redirect('/login')        
-    }
-}
+            const decodificada = await promisify(jwt.verify)(req.cookies.jwt, JWT_SECRETO);
 
-exports.logout = (req, res)=>{
-    res.clearCookie('jwt')   
-    return res.redirect('/')
-}
+            const userRecord = await User.findByPk(decodificada.id);
+
+            if (!userRecord) {
+                return next();
+            }
+
+            req.user = userRecord;
+            return next();
+        } catch (error) {
+            console.log(error);
+            return next();
+        }
+    } else {
+        res.redirect('/login');
+    }
+};
+
+exports.logout = (req, res) => {
+    res.clearCookie('jwt');
+    return res.redirect('/');
+};
