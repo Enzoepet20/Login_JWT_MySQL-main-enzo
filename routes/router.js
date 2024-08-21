@@ -65,6 +65,18 @@ router.get('/register', (req, res)=>{
 router.get('/login', (req, res)=>{
     res.render('login', {alert:false})
 })
+router.get('/edit/:id', authController.isAuthenticated, async (req, res) => {
+    try {
+        const user = await User.findByPk(req.params.id);
+        if (!user) {
+            return res.status(404).send('Usuario no encontrado');
+        }
+        res.render('edit', { user });
+    } catch (error) {
+        console.log(error);
+        res.status(500).send('Error al cargar el usuario');
+    }
+});
 
 
 //router para los métodos del controller
@@ -93,6 +105,44 @@ router.post('/register', upload.single('profileImage'), [
         authController.register(req, res);  // Llama al controlador solo si la validación fue exitosa
     }
 });
+// Ruta para borrar un usuario
+router.post('/delete/:id', authController.isAuthenticated, async (req, res) => {
+    try {
+        const user = await User.findByPk(req.params.id);
+        if (!user) {
+            return res.status(404).send('Usuario no encontrado');
+        }
+        await user.destroy();
+        res.redirect('/');
+    } catch (error) {
+        console.log(error);
+        res.status(500).send('Error al borrar el usuario');
+    }
+});
+// Ruta para procesar la edición de un usuario
+router.put('/edit/:id', authController.isAuthenticated, async (req, res) => {
+    try {
+        const { name, correo } = req.body;
+        const user = await User.findByPk(req.params.id);
+        if (!user) {
+            return res.status(404).send('Usuario no encontrado');
+        }
+        
+        user.name = name || user.name;
+        user.correo = correo || user.correo;
+        if (req.file) {
+            user.profile_image = `/uploads/${req.file.filename}`;
+        }
+
+        console.log(user, name, correo);
+        await user.save();
+        res.redirect('/');
+    } catch (error) {
+        console.log(error);
+        res.status(500).send('Error al editar el usuario');
+    }
+});
+
 router.post('/login', authController.login)
 router.get('/logout', authController.logout)
 

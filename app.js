@@ -4,6 +4,7 @@ const dotenv = require('dotenv')
 const cookieParser = require('cookie-parser')
 const User = require('./models/User');
 const db = require('./database/db');
+const methodOverride = require('method-override');
 
 const app = express()
 
@@ -22,7 +23,8 @@ dotenv.config({ path: './env/.env' })
 
 // Para poder trabajar con las cookies
 app.use(cookieParser())
-
+// Para poder trabajar con PUT y DELETE
+app.use(methodOverride('_method'));
 // Llamar al router
 app.use('/', require('./routes/router'))
 

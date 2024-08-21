@@ -89,6 +89,12 @@
                 <td>
                   <img src="..<%= usuario.profile_image %>" alt="Imagen de perfil" style="max-width: 50px; border-radius: 50%;">
                 </td>
+                <td>
+                  <a href="/edit/<%= usuario.id %>" class="btn btn-warning">Editar</a>
+                  <form action="/delete/<%= usuario.id %>" method="POST" style="display:inline;">
+                    <button type="submit" class="btn btn-danger">Borrar</button>
+                  </form>
+                </td>
               </tr>
             <% }) %>
           <% } else { %>
