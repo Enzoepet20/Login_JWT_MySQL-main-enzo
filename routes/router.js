@@ -4,6 +4,7 @@ const User = require('../models/User');
 const multer = require('multer');
 const path = require('path');
 const authController = require('../controllers/authController');
+const validateController = require('../controllers/validateController');
 const {body, validationResult} = require('express-validator')
 // Configurar Multer para almacenar las imágenes en una carpeta 'uploads'
 const storage = multer.diskStorage({
@@ -37,25 +38,9 @@ const validateProfileImage = body('profileImage')
 
         return true;
     });
-
 //router para las vistas
-router.get('/', authController.isAuthenticated, async (req, res) => {
-    try {
-        const { id, user, name, profile_image } = req.user;
-
-        // Recuperar todos los usuarios desde la base de datos
-        const users = await User.findAll({
-            attributes: ['id', 'user', 'name', 'correo', 'profile_image']
-        });
-
-        res.render('index', {
-            user: { id, user, name, profile_image },
-            users: users
-        });
-    } catch (error) {
-        console.log(error);
-        res.status(500).send('Error al cargar la página principal');
-    }
+router.get('/', authController.isAuthenticated, authController.show, (req, res) => {
+    res.render('index', { user: req.user, users: req.users });
 });
 
 router.get('/register', (req, res)=>{
@@ -65,18 +50,7 @@ router.get('/register', (req, res)=>{
 router.get('/login', (req, res)=>{
     res.render('login', {alert:false})
 })
-router.get('/edit/:id', authController.isAuthenticated, async (req, res) => {
-    try {
-        const user = await User.findByPk(req.params.id);
-        if (!user) {
-            return res.status(404).send('Usuario no encontrado');
-        }
-        res.render('edit', { user });
-    } catch (error) {
-        console.log(error);
-        res.status(500).send('Error al cargar el usuario');
-    }
-});
+router.get('/edit/:id', authController.isAuthenticated, authController.getUserForEdit);
 
 
 //router para los métodos del controller
@@ -105,12 +79,11 @@ router.post('/register', upload.single('profileImage'), [
         authController.register(req, res);  // Llama al controlador solo si la validación fue exitosa
     }
 });
-
 // Ruta para borrar un usuario
 router.post('/delete/:id', authController.delete)
 
 // Ruta para procesar la edición de un usuario
-router.post('/edit/:id', upload.single('profileImage'), authController.edit)
+router.post('/edit/:id', validateController.uploadProfileImage , authController.edit)
 
 router.post('/login', authController.login)
 router.get('/logout', authController.logout)

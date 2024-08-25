@@ -32,6 +32,40 @@ exports.isAuthenticated = async (req, res, next) => {
     }
 };
 
+// Metodo para mostrar la vista principal
+exports.show = async (req, res, next) => {
+    try {
+        const { id, user, name, profile_image } = req.user;
+
+        // Recuperar todos los usuarios desde la base de datos
+        const users = await User.findAll({
+            attributes: ['id', 'user', 'name', 'correo', 'profile_image']
+        });
+
+        res.render('index', {
+            user: { id, user, name, profile_image },
+            users: users
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).send('Error al cargar la página principal');
+    }
+};
+
+// Metodo para mostrar la vista de edición
+exports.getUserForEdit = async (req, res, next) => {
+    try {
+        const user = await User.findByPk(req.params.id);
+        if (!user) {
+            return res.status(404).send('Usuario no encontrado');
+        }
+        res.render('edit', { user });
+    } catch (error) {
+        console.log(error);
+        res.status(500).send('Error al cargar el usuario');
+    }
+};
+
 // Procedimiento para registrarnos
 exports.register = async (req, res) => {    
     try {
