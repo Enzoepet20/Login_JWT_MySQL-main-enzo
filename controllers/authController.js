@@ -2,11 +2,35 @@ const jwt = require('jsonwebtoken');
 const bcryptjs = require('bcryptjs');
 const User = require('../models/User'); // Importa tu modelo de Sequelize
 const { promisify } = require('util');
+const e = require('express');
 
 // Valores reemplazados que estaban en el archivo .env
 const JWT_SECRETO = 'super_secret';
 const JWT_TIEMPO_EXPIRA = '7d';
 const JWT_COOKIE_EXPIRES = 90; // En días
+
+// Middleware para verificar si el usuario está autenticado
+exports.isAuthenticated = async (req, res, next) => {
+    if (req.cookies.jwt) {
+        try {
+            const decodificada = await promisify(jwt.verify)(req.cookies.jwt, JWT_SECRETO);
+
+            const userRecord = await User.findByPk(decodificada.id);
+
+            if (!userRecord) {
+                return next();
+            }
+
+            req.user = userRecord;
+            return next();
+        } catch (error) {
+            console.log(error);
+            return next();
+        }
+    } else {
+        res.redirect('/login');
+    }
+};
 
 // Procedimiento para registrarnos
 exports.register = async (req, res) => {    
@@ -95,29 +119,44 @@ exports.login = async (req, res) => {
     }
 };
 
-exports.isAuthenticated = async (req, res, next) => {
-    if (req.cookies.jwt) {
-        try {
-            const decodificada = await promisify(jwt.verify)(req.cookies.jwt, JWT_SECRETO);
 
-            const userRecord = await User.findByPk(decodificada.id);
-
-            if (!userRecord) {
-                return next();
-            }
-
-            req.user = userRecord;
-            return next();
-        } catch (error) {
-            console.log(error);
-            return next();
-        }
-    } else {
-        res.redirect('/login');
-    }
-};
 
 exports.logout = (req, res) => {
     res.clearCookie('jwt');
     return res.redirect('/');
 };
+
+exports.edit = async (req, res) => {
+    try {
+        const { name, correo } = req.body;
+        const user = await User.findByPk(req.params.id);
+        if (!user) {
+            return res.status(404).send('Usuario no encontrado');
+        }
+
+        user.name = name || user.name;
+        user.correo = correo || user.correo;
+        if (req.file) {
+            user.profile_image = `/uploads/${req.file.filename}`;
+        }
+
+        await user.save();
+        res.redirect('/');
+    } catch (error) {
+        console.log(error);
+        res.status(500).send('Error al editar el usuario');
+    }
+}
+exports.delete = async (req, res) => {
+    try {
+        const user = await User.findByPk(req.params.id);
+        if (!user) {
+            return res.status(404).send('Usuario no encontrado');
+        }
+        await user.destroy();
+        res.redirect('/');
+    } catch (error) {
+        console.log(error);
+        res.status(500).send('Error al borrar el usuario');
+    }
+}
